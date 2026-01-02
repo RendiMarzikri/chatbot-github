@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="id">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Chat LLM Fixed Max 40 Kata</title>
+<style>
+body { font-family: Arial; padding: 20px; }
+textarea, input { width: 100%; margin: 6px 0; }
+button { padding: 8px 12px; margin-right: 6px; }
+#output { white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; min-height: 120px; }
+</style>
+<h2>Mini Chat LLM - Max 40 Kata</h2>
+<textarea id="dataset" rows="12">
+<USER> halo
+<ASSISTANT> halo juga aku adalah AI ramah
+
+<USER> siapa kamu
+<ASSISTANT> halo aku adalah AI yang dibuat oleh rendi marzikri
+  
+<USER> google
+<ASSISTANT> google adalah mesin pencarian canggih di dunia. Google mempunyai perpustakaan indeks besar yang berisi situs dan tautan situs.
+  
+<USER> yang bisa kamu lakukan
+<ASSISTANT> aku bisa menghasilkan teks sendiri dengan melanjutkan kata sebelumnya dengan kata berikutnya.
+  
+<USER> bisa bahasa indonesia
+<ASSISTANT> aku bisa menghasilkan teks dalam bahasa indonesia dan beberapa bahasa lainnya.
+</textarea>
+<button onclick="train()">Train</button>
+<input id="userInput" placeholder="Tulis pesan..." />
+<button onclick="send()">Send</button>
+<h3>AI Output:</h3>
+<div id="output"></div>
+<script>
+let model={}, trained=false;
+let interval=null;
+let assistantTokens=[];
+
+// ===== Tokenisasi =====
+function tokenize(text){return text.toLowerCase().replace(/[^\w\s]/g,"").split(/\s+/).filter(Boolean);}
+
+// ===== Train =====
+function train(){model={};assistantTokens=[];const text=document.getElementById("dataset").value;const lines=text.split("\n");for(let line of lines){if(line.startsWith("<ASSISTANT>")){const t=tokenize(line.replace("<ASSISTANT>",""));assistantTokens.push(...t);}}
+
+// Build bigram probabilitas dari seluruh assistantTokens
+for(let i=0;i<assistantTokens.length-1;i++){let a=assistantTokens[i], b=assistantTokens[i+1];if(!model[a]) model[a]={};model[a][b]=(model[a][b]||0)+1;}trained=true;alert("Training selesai");}
+
+// ===== Sampling probabilitas =====
+function sampleWeighted(obj){let total=Object.values(obj).reduce((a,b)=>a+b,0);let r=Math.random()*total,sum=0;for(let k in obj){ sum+=obj[k]; if(r<=sum) return k; }}
+
+// ===== Cari seed token dari input user =====
+function findSeed(input){const inputTokens=tokenize(input);
+// Cek token yang sama persis di assistantTokens
+for(let tok of inputTokens){if(assistantTokens.includes(tok)) return tok;}return assistantTokens[Math.floor(Math.random()*assistantTokens.length)];}
+
+// ===== Send / Chat =====
+function send(){if(!trained) return alert("Train dulu!");clearInterval(interval);const input=document.getElementById("userInput").value.trim();const out=document.getElementById("output");out.textContent="";let cur=findSeed(input);if(!cur){out.textContent="AI: (tidak ada token cocok)";return;}let outputTokens=[cur];let seenBigrams=new Set();out.textContent=outputTokens.join(" ");let maxWords = 40;interval=setInterval(()=>{   if(outputTokens.length >= maxWords){clearInterval(interval);return;}let candidates=model[cur];if(!candidates) return;let next=sampleWeighted(candidates);let key=cur+"||"+next;if(seenBigrams.has(key)){let alt=Object.keys(candidates).filter(k=>!seenBigrams.has(cur+"||"+k));if(alt.length) next=alt[Math.floor(Math.random()*alt.length)];else next=Object.keys(candidates)[Math.floor(Math.random()*Object.keys(candidates).length)];}seenBigrams.add(cur+"||"+next);outputTokens.push(next);out.textContent=outputTokens.join(" ");cur=next;},2000);}
+</script>
+</html>
